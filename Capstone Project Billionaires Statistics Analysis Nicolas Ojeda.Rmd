@@ -1,0 +1,442 @@
+---
+title: 'Capstone Project: Billionaires Statistics Analysis'
+author: "Nicolas Ojeda"
+date: "11/29/23"
+output:
+  rmarkdown::pdf_document:
+    keep_tex: true
+    number_sections: true
+    toc: true
+    toc_depth: 3
+    latex_engine: xelatex
+  bookdown::pdf_document2:
+    keep_tex: true
+    number_sections: true
+    toc: true
+    toc_depth: 3
+    latex_engine: lualatex
+documentclass: report
+papersize: a4
+fontsize: 12pt
+links-as-notes: true
+linkcolor: blue
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, cache.lazy = FALSE)
+```
+
+\newpage
+
+# Introduction
+
+In this Capstone Project, I delve into the fascinating and complex world of billionaires. My goal is to analyze the wealth distribution among these individuals, not just as figures of affluence but as indicators of broader economic, social, and policy trends. Drawing upon the methodologies outlined in Julius Olufemi Ogunleye's insightful work, especially the use of Linear Regression and Random Forest models, I aim to unravel the intricate patterns of wealth distribution.
+
+# Overview 
+
+My approach goes beyond mere numerical analysis; it's an endeavor to understand the deeper implications of wealth concentration on global economic health and social equity. By applying advanced predictive analysis models, I am exploring the 'what', 'how', and 'why' of billionaire wealth distribution. This understanding is vital in an era marked by significant economic disparities. As I navigate through the billionaires' statistics dataset, my focus remains steadfast on data integrity and the dynamic nature of economic data, ensuring my findings are not only accurate but also relevant and reflective of the current economic landscape. 
+
+
+# Methods 
+
+The choice of Linear Regression was driven by its interpretability and ability to quantify the impact of individual variables, such as age and industry, on wealth. It's a fundamental tool for understanding direct relationships and setting a baseline for comparison with more complex models. Random Forest, on the other hand, was selected for its robustness to overfitting and ability to model complex, non-linear interactions. Its ensemble approach, combining multiple decision trees, provides a more nuanced understanding of how various factors contribute to a billionaire's category, capturing interactions that a simpler model might miss. This combination of methods allows for a comprehensive analysis — Linear Regression offering a clear, direct interpretation, and Random Forest providing depth and complexity.
+
+# Hypothesis 
+1. The age and industry of a billionaire significantly influence their overall wealth, with older billionaires and those in certain industries like technology and finance likely to have higher net worths.
+2. Gender plays a critical role in wealth accumulation, with potential disparities in wealth distribution between male and female billionaires.
+3. Geographic location, specifically the country of residence, has a significant impact on a billionaire's net worth, reflecting different economic environments and opportunities.
+
+These hypotheses aim to provide insights into the factors that contribute to the wealth of billionaires, offering a deeper understanding of wealth distribution patterns in the context of global economic dynamics.
+
+\newpage
+
+Data Collection: The primary data set for this project, the Billionaires
+Statistics Data set, was sourced from
+<https://www.kaggle.com/datasets/nelgiriyewithana/billionaires-statistics-dataset>
+. This data set offers a comprehensive aggregation of financial and
+personal details of the worlds wealthiest individuals, including their
+net worth, sources of wealth, involvement in various industries,
+philanthropic activities, and more. This data set provides a robust
+foundation for analyzing the factors influencing billionaire wealth.
+
+\newpage
+
+
+# Data Preparation , Data Loading, Cleaning and Data Splitting for Modeling 
+
+In this section, I install, and load every packages required for this
+project,
+
+```         
+```
+
+```{r}
+# Load all packages required for the project
+required_packages <- c(
+  "tidyverse",    # For data manipulation and visualization
+  "lubridate",    # For handling date-time data
+  "ggplot2",      # For creating advanced graphics
+  "dplyr",        # For data manipulation
+  "readr",        # For reading CSV data
+  "caret",        # For modeling and machine learning
+  "randomForest", # For Random Forest algorithm
+  "rmarkdown",    # For dynamic report generation
+  "stats",        # For statistical functions
+  "broom"         # For tidying model outputs
+)
+
+# Install missing packages
+new_packages <- required_packages[!required_packages %in% installed.packages()[,"Package"]]
+if(length(new_packages)) install.packages(new_packages)
+
+# Load all required libraries
+invisible(lapply(required_packages, library, character.only = TRUE))
+
+# Enhanced package installation with error handling
+for (pkg in required_packages) {
+  if (!require(pkg, character.only = TRUE)) {
+    install.packages(pkg)
+    library(pkg, character.only = TRUE)
+  }
+}
+
+# Load the dataset (assumes CSV format)
+billionaires <- read.csv("C:/Users/nico0/OneDrive/Documents/billionare/Billionaires Statistics Dataset.csv", stringsAsFactors = FALSE)
+
+# Preliminary data cleaning
+billionaires <- billionaires %>%
+  mutate_if(is.character, trimws) %>%  # Trimming whitespace from character columns
+  na.omit()  # Removing rows with any missing values
+
+# Summary statistics to understand the data better
+summary(billionaires)
+
+# Split the data into training and test sets (80-20 split)
+set.seed(123)  # Setting seed for reproducibility
+train_index <- createDataPartition(billionaires$category, p = 0.8, list = FALSE)
+train_set <- billionaires[train_index, ]
+test_set <- billionaires[-train_index, ]
+
+# Check the dimensions of the train and test sets
+dim(train_set)
+dim(test_set)
+
+```
+
+# Total Billionaire Wealth by Country
+
+```{r}
+# Visualizing Total Billionaire Wealth by Country
+ggplot(billionaires, aes(x = country, y = finalWorth)) +
+  geom_col(fill = "blue", color = "black") +  # Using bar charts to represent total wealth
+  labs(title = "Total Billionaire Wealth by Country", 
+       x = "Country", 
+       y = "Total Wealth (in billions)") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))  # Rotating x labels for readability
+
+
+```
+
+This bar chart shows the sum of wealth for each country. There is a
+significant variance in total wealth between countries. The United
+States stands out with the highest total wealth, which could suggest it
+has either a greater number of billionaires or higher individual wealth
+values, or both. The distribution is highly skewed, with most countries
+having considerably less total wealth compared to the United States.
+
+# Wealth Distribution by Category
+
+```{r}
+# Initialize a ggplot with billionaires data, mapping category to x-axis and finalWorth to y-axis
+ggplot(billionaires, aes(x = category, y = finalWorth)) +
+  # Add boxplots to show the wealth distribution across different categories
+  geom_boxplot(fill = "lightblue", color = "black") +
+  # Add labels for the plot, x-axis, and y-axis
+  labs(title = "Wealth Distribution by Category", 
+       x = "Category", 
+       y = "Wealth (in billions)") +
+  # Tilt the x-axis text for better readability
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+This dot plot presents the wealth distribution across different industry
+categories. It seems to be displaying individual data points for wealth
+within each category, which could represent individual billionaires
+wealth in each sector. Some categories like Technology, Finance &
+Investments, and Manufacturing appear to have a wider range of wealth
+values, with some individuals significantly wealthier than others within
+the same category. There may be outliers in several categories that
+could represent particularly successful individuals or industry giants.
+
+# Distribution of Billionaire Ages
+
+```{r}
+# Histogram for Distribution of Billionaire Ages
+hist(billionaires$age, 
+     breaks = 30,  # Set the number of bins to 30
+     main = "Distribution of Billionaire Ages",  # Title of the plot
+     xlab = "Age",  # Label for the x-axis
+     ylab = "Frequency",  # Label for the y-axis
+     col = "lightblue",  # Color the bars light blue
+     border = "black")  # Color the border of the bars black
+
+
+```
+
+This histogram displays the frequency distribution of ages among
+billionaires. The x-axis represents different age groups, while the
+y-axis shows the frequency of billionaires within those age groups. The
+distribution appears to be right-skewed, indicating that there are fewer
+young billionaires and a greater number of older billionaires. The
+majority of billionaires fall within the middle age brackets, which
+could suggest that wealth accumulation peaks during these years. The
+skewness towards older ages may reflect the time it takes to build and
+amass significant wealth.
+
+# Cumulative Wealth by Age
+
+```{r}
+# Initialize a ggplot with billionaires data, mapping age to x-axis and finalWorth to y-axis
+ggplot(billionaires, aes(x = age, y = finalWorth)) +
+  # Add an empirical cumulative distribution function (ECDF) to show the cumulative wealth distribution by age
+  stat_ecdf(geom = "step", color = "darkblue") +
+  # Add labels for the plot, x-axis, and y-axis
+  labs(title = "Cumulative Wealth Distribution by Age", 
+       x = "Age", 
+       y = "Cumulative Wealth (in billions)") +
+  # Apply a minimal theme for a clean look
+  theme_minimal()
+
+
+```
+
+Represents a step graph that shows the cumulative distribution function
+of wealth as it relates to the age of billionaires. The x-axis displays
+the age, while the y-axis shows the cumulative wealth. The graph
+indicates that wealth accumulation increases with age, suggesting that
+the older billionaires tend to have higher wealth accumulation, which
+could be due to more extended periods of wealth generation and
+compounding investments over time.
+
+# Density Plot of Billionaires' Wealth 
+
+```{r}
+# Initialize a ggplot with billionaires data, mapping finalWorth to x-axis
+ggplot(billionaires, aes(x = finalWorth)) +
+  # Add a density plot to visualize the distribution of billionaire wealth
+  geom_density(fill = "salmon", color = "darkred", alpha = 0.7) +
+  # Add labels for the plot, x-axis, and y-axis
+  labs(title = "Density Plot of Billionaires' Wealth", 
+       x = "Wealth (in billions)", 
+       y = "Density") +
+  # Apply a black and white theme for a classic look
+  theme_bw() +
+  # Limit the x-axis to the 99th percentile to focus on the most common range and exclude extreme values
+  xlim(0, quantile(billionaires$finalWorth, 0.99))
+
+```
+
+This is a density plot that provides a smoothed representation of the
+distribution of billionaires' wealth. The x-axis represents the wealth
+in billions, and the y-axis represents the density of the probability
+distribution for wealth. The plot shows a peak at the lower end of the
+wealth spectrum, indicating a high density of billionaires with
+relatively lower wealth, and a long tail extending towards the higher
+wealth values, representing the rarity of extremely high wealth. This
+pattern reflects the inequality in wealth distribution, with a large
+number of billionaires having wealth in the lower range of the spectrum
+and a few individuals having significantly higher wealth.
+
+\newpage
+
+
+# Linear Regression Model Development
+
+### Linear Regression Analysis for Gender Differences 
+
+```{r}
+# Convert categorical variables to factors
+billionaires$gender <- as.factor(billionaires$gender)
+billionaires$category <- as.factor(billionaires$category)
+billionaires$country <- as.factor(billionaires$country)
+
+# Building separate linear models for Male and Female to compare
+model_male <- lm(finalWorth ~ age + category + country, data = filter(billionaires, gender == 'M'))
+model_female <- lm(finalWorth ~ age + category + country, data = filter(billionaires, gender == 'F'))
+
+# Diagnostic plots to check assumptions and model fit for the male model
+par(mfrow = c(2, 2))
+plot(model_male)
+
+# Diagnostic plots for the female model
+par(mfrow = c(2, 2))
+plot(model_female)
+
+# Summarizing models to understand the influence of predictors
+summary(model_male)
+summary(model_female)
+
+```
+
+# linear Regression Results
+
+### Linear Regression Outcomes
+
+```{r}
+# Extracting coefficients for the male and female models
+coef_male <- broom::tidy(model_male)
+coef_female <- broom::tidy(model_female)
+
+# Static ggplot for Male Model
+gg_male <- ggplot(coef_male, aes(x = estimate, y = reorder(term, estimate))) +
+  geom_bar(stat = 'identity', fill = 'blue') +
+  labs(title = 'Significant Coefficients of the Male Model', x = "Estimates", y = "Terms") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 12))
+
+# Static ggplot for Female Model
+gg_female <- ggplot(coef_female, aes(x = estimate, y = reorder(term, estimate))) +
+  geom_bar(stat = 'identity', fill = 'pink') +
+  labs(title = 'Significant Coefficients of the Female Model', x = "Estimates", y = "Terms") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 12))
+
+
+```
+### Lineal Regression Model Analysis
+
+Male Model 
+
+In my male model, I found that age and specific industries significantly predict final worth, with age positively correlating with wealth. The model's explanatory power is quite limited, as indicated by the low R-squared value of approximately 5%. Despite this, the overall model is statistically significant with a p-value of 0.02384, which suggests that the predictors I've chosen do collectively influence final worth. However, this also implies that there are additional factors not included in my model that are important in explaining the variance in final worth.
+
+Female Model 
+
+For the female model, fewer variables turned out to be significant. Notably, being in France seems to be a significant predictor of final worth. The model accounts for about 20% of the variance in final worth, a figure that's higher than that of the male model, but it still leaves a substantial amount of variance unexplained. Moreover, the overall model is not statistically significant, as reflected by a p-value of 0.1519. This suggests that the predictors I've selected don't have a strong collective influence on final worth for females.
+
+Insights 
+
+Reflecting on my analysis, I see that for males, factors like age and industry category are influential in determining wealth, pointing to the need for me to explore additional variables that could enhance the model's predictive accuracy. For females, while geographic location, particularly France, appears influential, the lack of overall model significance points to missing critical variables that affect female wealth which I have not captured. The relatively low R-squared values for both models indicate they do not capture all the complexities of wealth. I recommend additional data collection and model refinement to improve the predictive power of my analyses.
+
+
+# Random Forest Model Development
+
+### Random Forest model for predicting Billionaire Categories Based on Demographics and Wealth Sources 
+
+```{r}
+# Converting categorical variables to factors
+billionaires$country <- as.factor(billionaires$country)
+billionaires$source <- as.factor(billionaires$source)
+billionaires$category <- as.factor(billionaires$category)
+
+# Convert 'age' to numeric if it's not already
+billionaires$age <- as.numeric(billionaires$age)
+
+# Optional: Remove rows with NA values if they exist
+billionaires <- na.omit(billionaires)
+
+# Finding top 10 countries
+top_countries <- names(sort(table(billionaires$country), decreasing = TRUE)[1:10])
+
+# Finding top 10 sources
+top_sources <- names(sort(table(billionaires$source), decreasing = TRUE)[1:10])
+
+# Reducing the number of levels in categorical variables
+# Group countries into fewer categories
+billionaires$country <- as.factor(ifelse(billionaires$country %in% top_countries, billionaires$country, "Other"))
+
+# Repeat similar steps for 'source' if it has more than 53 levels
+# Replace 'top_sources' with a vector of your selected sources
+billionaires$source <- as.factor(ifelse(billionaires$source %in% top_sources, billionaires$source, "Other"))
+
+# Split the data into training and testing sets
+set.seed(123) # Set a random seed for reproducibility
+index <- createDataPartition(billionaires$category, p = 0.8, list = FALSE)
+train_set <- billionaires[index, ]
+test_set <- billionaires[-index, ]
+# Building the Random Forest model
+model_rf <- randomForest(category ~ age + country + source, data = billionaires, ntree = 100)
+
+```
+
+# Random Forest Results
+
+### Random Forest Model Outcomes
+
+```{r}
+# Making predictions on the test set
+predictions <- predict(model_rf, newdata = test_set)
+
+# Evaluating the results with a confusion matrix
+confusion_matrix <- table(Predicted = predictions, Actual = test_set$category)
+print(confusion_matrix)
+
+# Calculating accuracy
+accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+print(paste("Accuracy:", round(accuracy, 4)))
+
+# If your 'category' variable is binary, calculate the AUC
+if (length(levels(test_set$category)) == 2) {
+  roc_response <- ifelse(test_set$category == levels(test_set$category)[2], 1, 0)
+  predictions_numeric <- as.numeric(predictions == levels(predictions)[2])
+  roc_curve <- roc(roc_response, predictions_numeric)
+  auc_value <- auc(roc_curve)
+  cat("AUC:", auc_value, "\n")
+  
+  # Plotting ROC curve
+  ggplot() +
+    geom_line(data = data.frame(fpr = roc_curve$specificities, tpr = roc_curve$sensitivities), aes(x = fpr, y = tpr)) +
+    geom_abline(linetype = "dashed") +
+    xlab("False Positive Rate") +
+    ylab("True Positive Rate") +
+    ggtitle("ROC Curve") +
+    theme_minimal()
+}
+
+# Visualize the results with a variable importance plot
+varImpPlot(model_rf, main = "Variable Importance Plot")
+
+# Visualize the Out-of-Bag error rate across the number of trees
+plot(model_rf$err.rate[,1], type = "l", 
+     xlab = "Number of Trees", ylab = "OOB Error Rate", 
+     main = "OOB Error Rate Across Trees")
+
+
+```
+
+### Random Forest Model Analysis
+
+The model's performance, as illustrated by the confusion matrix, reveals not just the predictive power but also the limitations of our current approach. While the overall accuracy of 47.87% is moderate, it's essential to delve into why certain categories like 'Finance & Investments' and 'Manufacturing' are better predicted than others such as 'Automotive' and 'Service'. This discrepancy might point to inherent differences in the predictability of wealth based on the industry, perhaps due to the varying nature of wealth accumulation in these sectors or the different types of data available for them.
+
+The significant p-value does indicate that the model is picking up on real patterns in the data, but the moderate accuracy suggests that the complexity of billionaire status is only partially captured. This could be due to several factors. For one, the nature of wealth, particularly at the billionaire level, is influenced by a myriad of intertwined factors, from personal networks and access to capital to geopolitical events and market dynamics. Additionally, the data might not capture all the nuances, such as hidden assets, valuation fluctuations, or off-market transactions.
+
+Moreover, the categorization of billionaires might have inherent complexities that a model like Random Forest can only partially unravel. For instance, individuals with wealth in multiple industries or countries might blur the lines between categories, making precise classification challenging.
+
+Given these considerations, future models might benefit from incorporating more detailed data on market conditions, personal networks, or even political and regulatory environments. Qualitative data, such as news reports or industry analyses, could also provide context that helps explain outliers or unexpected classifications.
+
+Furthermore, advanced modeling techniques that can handle high-dimensional, complex data could offer deeper insights. For instance, neural networks or gradient boosting machines might capture nonlinearities and interactions that a traditional Random Forest might miss.
+
+In conclusion, while the current model provides valuable insights and a solid starting point, the path to a comprehensive understanding of billionaire wealth is complex and multifaceted. Continued exploration, enriched data, and advanced modeling techniques are key to unraveling this intricate web and accurately predicting the category and status of the world's billionaires."
+
+Insights
+
+The model's predictions, scrutinized through a confusion matrix, showed varying degrees of accuracy across different categories. It excelled in certain areas such as 'Finance & Investments' and 'Manufacturing' while falling short in others like 'Automotive' and 'Service'. With an overall accuracy of 47.87%, the model indicates a significant, albeit moderate, ability to predict billionaire status.
+
+This moderate accuracy, coupled with the significant p-value, implies that while the selected features have an impact, they do not wholly capture the complexity of billionaire categorization. The model's results hint at a nuanced relationship between demographics, industry sources, and wealth accumulation, suggesting that other unconsidered variables may play a role in determining a billionaire's category.
+
+The analysis underscores the need for a more detailed model that can encapsulate the diverse factors influencing wealth. The current model serves as a foundational step in understanding the attributes that correlate with billionaire status and highlights the potential for incorporating additional predictors to enhance the model's explanatory power.
+
+ 
+# Conclusion 
+
+As I conclude this Capstone Project on Billionaires Statistics Analysis, the study has provided valuable insights into the wealth distribution among billionaires and its broader economic and social implications. These findings have potential real-world applications in economic policy-making and wealth management. However, the study has limitations, such as the scope of data and potential unexplored variables that could influence wealth distribution. Future research could expand to include more diverse datasets and explore the impact of emerging economic trends on billionaire wealth. 
+
+
+# References
+
+<https://www.intechopen.com/chapters/84394>
+
+<https://www.mdpi.com/2072-4292/12/13/2071>
